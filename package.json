@@ -1,0 +1,39 @@
+{
+	"author": "padreramnt",
+	"description": "Parallel execution of callbacks for each element of the array",
+	"dependencies": {
+		"@st-lib/is": "^1.0.5",
+		"tslib": "^2.0.0"
+	},
+	"devDependencies": {
+		"rimraf": "^3.0.2",
+		"typescript": "^4.0.0"
+	},
+	"files": [
+		"lib"
+	],
+	"keywords": [
+		"st-lib",
+		"parallel"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Padreramnt/st-lib--parallel"
+	},
+	"license": "MIT",
+	"main": "lib/index.js",
+	"module": "lib/index.js",
+	"name": "@st-lib/parallel",
+	"scripts": {
+		"build": "tsc -p ./tsconfig.json",
+		"prebuild": "rimraf -rf ./lib",
+		"prepublishOnly": "npm run build",
+		"prestart": "rimraf -rf ./lib",
+		"start": "tsc -p ./tsconfig.json -w",
+		"start:tsc": "tsc",
+		"test": "tsc -p ./tsconfig.json --noEmit"
+	},
+	"types": "lib/index.d.ts",
+	"version": "1.0.0",
+	"peerDependencies": {}
+}
