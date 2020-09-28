@@ -23,8 +23,8 @@ export const config = {
 
 function getOptions(options: IOptions | null | undefined) {
 	const threads = options && isNumber(options.threads) ? Math.max(options.threads, 2) : config.defaultThreads
-	const isCanceled = typeof options?.isCanceled === 'function' ? options.isCanceled : null
-	const onProgress = typeof options?.onProgress === 'function' ? options.onProgress : null
+	const isCanceled = options && typeof options.isCanceled === 'function' ? options.isCanceled : null
+	const onProgress = options && typeof options.onProgress === 'function' ? options.onProgress : null
 	return {
 		threads,
 		isCanceled,
@@ -32,11 +32,13 @@ function getOptions(options: IOptions | null | undefined) {
 	} as const
 }
 
-export type Callback<T, R> = (it: T, index: number, self: readonly T[]) => Promise<R>
+function* toIterator<T>(it: Iterable<T>) {
+	yield* it
+}
 
-export function runDependently<T, R>(
-	array: readonly T[],
-	cb: Callback<T, R>,
+export function runDependently<S extends Iterable<any>, R>(
+	argsStream: S,
+	cb: (it: S extends Iterable<infer T> ? T : never, index: number, self: S) => Promise<R>,
 	options: IOptions | null = null,
 ) {
 	return new Promise<R[]>((res, rej) => {
@@ -48,7 +50,8 @@ export function runDependently<T, R>(
 		let throwed = false
 		let readyCount = 0
 		let currentIndex = 0
-		const out = new Array(array.length)
+		const iter = toIterator(argsStream)
+		const out = new Array(threads)
 		const tasks: Promise<any>[] = []
 		function reject(error: any) {
 			throwed = true
@@ -64,9 +67,10 @@ export function runDependently<T, R>(
 			tasks.push(task)
 			task.finally(dequeue.bind(null, task))
 		}
-		function put() {
+		function put(value: any) {
 			const index = currentIndex
-			queue(cb(array[index], index, array).then(result => {
+			out.length = Math.max(out.length, index + 1)
+			queue(cb(value, index, argsStream).then(result => {
 				out[index] = result
 			}).catch(reject).finally(() => {
 				readyCount++
@@ -74,15 +78,16 @@ export function runDependently<T, R>(
 			}))
 			currentIndex++
 		}
-		while (currentIndex < threads && currentIndex < array.length) {
-			put()
+		for (let it = iter.next(); currentIndex < threads && !it.done; it = iter.next()) {
+			put(it.value)
 		}
 		if (!throwed) Promise.race(tasks).then(async function next() {
-			if ((isCanceled && isCanceled()) || array.length <= currentIndex || throwed) {
+			const it = iter.next()
+			if ((isCanceled && isCanceled()) || it.done || throwed) {
 				await Promise.all(tasks)
 				res(out)
 			} else {
-				put()
+				put(it.value)
 				await Promise.race(tasks)
 				next()
 			}
@@ -117,9 +122,9 @@ export interface Independent<T> {
 	ok: boolean
 }
 
-export function runIndependently<T, R>(
-	array: readonly T[],
-	cb: Callback<T, R>,
+export function runIndependently<S extends Iterable<any>, R>(
+	argsStream: S,
+	cb: (it: S extends Iterable<infer T> ? T : never, index: number, self: S) => Promise<R>,
 	options: IOptions | null = null,
 ) {
 	return new Promise<Independent<R>>((res) => {
@@ -131,11 +136,12 @@ export function runIndependently<T, R>(
 		let readyCount = 0
 		let currentIndex = 0
 		const out: Independent<R> = {
-			results: new Array(array.length),
-			values: new Array(array.length),
+			results: new Array(threads),
+			values: new Array(threads),
 			errors: {},
 			ok: true,
 		}
+		const iter = toIterator(argsStream)
 		const tasks: Promise<any>[] = []
 		function dequeue(task: any) {
 			const idx = tasks.indexOf(task)
@@ -147,9 +153,11 @@ export function runIndependently<T, R>(
 			tasks.push(task)
 			task.finally(dequeue.bind(null, task))
 		}
-		function put() {
+		function put(value: any) {
 			const index = currentIndex
-			queue(cb(array[index], index, array).then(data => {
+			out.values.length = Math.max(out.values.length, index + 1)
+			out.results.length = Math.max(out.results.length, index + 1)
+			queue(cb(value, index, argsStream).then(data => {
 				out.values[index] = data
 				out.results[index] = {
 					ok: true,
@@ -168,15 +176,16 @@ export function runIndependently<T, R>(
 			}))
 			currentIndex++
 		}
-		while (currentIndex < threads && currentIndex < array.length) {
-			put()
+		for (let it = iter.next(); currentIndex < threads && !it.done; it = iter.next()) {
+			put(it.value)
 		}
 		Promise.race(tasks).then(async function next() {
-			if ((isCanceled && isCanceled()) || array.length <= currentIndex) {
+			const it = iter.next()
+			if ((isCanceled && isCanceled()) || it.done) {
 				await Promise.all(tasks)
 				res(out)
 			} else {
-				put()
+				put(it.value)
 				await Promise.race(tasks)
 				next()
 			}

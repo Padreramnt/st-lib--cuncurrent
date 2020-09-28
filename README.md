@@ -1,11 +1,14 @@
-# Parallel execution of callbacks for each element of the array
+# Parallel execution of callbacks for each element of the iterable
 
 ``` tsx
 import { runDependently, runIndependently, config } from '@st-lib/parallel'
 
 
-// get a lot of (~20e20) items
-declare var items: number[]
+function* getALotOfItems(count = 20e20) {
+	for (let i =0; i < count; i++) {
+		yield i
+	}
+}
 
 // globally set the default number of threads
 config.defaultThreads = 40
@@ -22,7 +25,7 @@ function doSomeHeavyCalculations(inp: number) {
 
 async function exampleRunDependently() {
 	try {
-		const results = await runDependently(items, doSomeHeavyCalculations)
+		const results = await runDependently(getALotOfItems(), doSomeHeavyCalculations)
 		console.log(results)
 	} catch (error) {
 		console.error(error)
@@ -31,7 +34,7 @@ async function exampleRunDependently() {
 }
 
 async function exampleRunIndependently() {
-	const { results, ok, errors, values } = await runIndependently(items, doSomeHeavyCalculations)
+	const { results, ok, errors, values } = await runIndependently(getALotOfItems(), doSomeHeavyCalculations)
 	// variant 1: switch via `ok`
 	if (ok) {
 		// all ok, values contain returned values of each callback, similar to runDependently

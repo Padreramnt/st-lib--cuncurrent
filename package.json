@@ -1,6 +1,6 @@
 {
 	"author": "padreramnt",
-	"description": "Parallel execution of callbacks for each element of the array",
+	"description": "Parallel execution of callbacks for each element of the iterable",
 	"dependencies": {
 		"@st-lib/is": "^1.0.5",
 		"tslib": "^2.0.0"
